@@ -1,6 +1,4 @@
-import datetime
 import sqlalchemy
-from sqlalchemy.dialects.postgresql import UUID
 
 import uuid
 from .db_session import SqlAlchemyBase

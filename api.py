@@ -1,10 +1,9 @@
-import flask
-import sqlalchemy
 from dbremote.db_session import create_session, global_init
-from flask import Flask, request, jsonify, Blueprint, Response, abort
+from flask import request, Blueprint, Response
 from dbremote.category import Category
 from datetime import datetime
 import json
+from copy import copy
 
 
 def datetime_valid(dt_str):
@@ -33,6 +32,7 @@ def add_to_db():
                 'type': '',
                 'latest': True}
 
+
     updateDate = content['updateDate']
 
     if not datetime_valid(updateDate):
@@ -43,6 +43,11 @@ def add_to_db():
     abstract['updateDate'] = updateDate
     # print(abstract['updateDate'], type(abstract['updateDate']))
     for item in content["items"]:
+        abstract['id'] = ''
+        abstract['parentId'] = None
+        abstract['name'] = ''
+        abstract['price'] = -1
+        abstract['type'] = ''
         for value in item:
             if value not in abstract.keys():
                 print(f"{value} not in allowed values")
@@ -51,7 +56,7 @@ def add_to_db():
         new_item = Category()
         old_item = session.query(Category).filter(Category.id == abstract['id'], Category.latest == True).first()
         if old_item:
-            old_item.latest = False
+            new_item = old_item
 
         new_item.id = abstract['id']
         new_item.parentId = abstract['parentId']
@@ -62,10 +67,26 @@ def add_to_db():
         new_item.latest = abstract['latest']
         new_item.date = abstract['updateDate']
         # print(new_item.date)
+        if new_item.parentId != None:
+            new_copy = copy(new_item)
+            parent = session.query(Category).filter(Category.id == new_copy.parentId).first()
+            while(parent.parentId != None):
+                parent.date = abstract['updateDate']
+                parent = session.query(Category).filter(Category.id == parent.parentId).first()
+            parent.date = abstract['updateDate']
+
+
         session.add(new_item)
 
     session.commit()
     return Response(status=200)
+
+
+def update_date(root, session, new_date):
+    elems = session.query(Category).filter(Category.parentId == root.id)
+    for i in elems:
+        if i.type == "CATEGORY":
+            update_date(i, session, new_date)
 
 
 def get_children(root: Category, session):
@@ -101,6 +122,7 @@ def children_to_json(children: list):
             abstract['type'] = children[i].type
             children[i] = abstract.copy()
 
+
 def get_price(children):
     n = 0
     for i in range(len(children)):
@@ -121,17 +143,36 @@ def delete_children(children: list, session):
             for olds in old:
                 session.delete(olds)
 
+
 def form_dict(children):
-    if children['type'] == "OFFER":
-        return children
-    child = []
-    abstract = {'id': '',
-                'parentId': '',
-                'name': '',
-                'price': -1,
-                'type': '',
-                'latest': True,
-                'date': ''}
+    abstract = {'id': children[0].id, 'parentId': children[0].parentId, 'name': children[0].name,
+                'price': children[0].price, 'type': children[0].type,
+                'date': (children[0].date).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                'children': []}
+    n = 0
+    for i in range(1, len(children)):
+        if type(children[i]) == list:
+            res, num, price = form_dict(children[i])
+            abstract['children'].append(res)
+            abstract['price'] += price
+            n += num
+
+        else:
+            abstract2 = {'id': children[i].id, 'parentId': children[i].parentId, 'name': children[i].name,
+                         'price': children[i].price, 'type': children[i].type,
+                         'date': (children[i].date).strftime("%Y-%m-%dT%H:%M:%S.000Z"), 'children': None}
+            abstract['children'].append(abstract2)
+            if abstract['price'] != -1:
+                abstract['price'] += abstract2['price']
+            else:
+                abstract['price'] = abstract2['price']
+            n += 1
+    price = abstract['price']
+    abstract['price'] = (abstract['price'] + 1) // n
+    if abstract['children'] == []:
+        abstract['children'] = None
+    return abstract, n, price
+
 
 @blueprint.route("/delete/<string:id>", methods=["DELETE", "GET"])
 def delete_item(id: str):
@@ -159,12 +200,15 @@ def delete_item(id: str):
 @blueprint.route("/nodes/<string:id>", methods=["GET", "POST"])
 def info(id: str):
     session = create_session()
+    if len(id) != 36:
+        return json.loads("{\n  \"code\": 400,\n  \"message\": \"Validation Failed\"\n}"), 400
     element = session.query(Category).filter(Category.id == id, Category.latest == True).first()
     if element == None:
+
         return json.loads("{\n  \"code\": 404,\n  \"message\": \"Item not found\"\n}"), 404
+
     children = get_children(element, session)
-    n = get_price(children)
-    print(children, n)
-    children_to_json(children)
-    #print(children)
-    return json.dumps(children)
+
+    ans, num, price = form_dict(children)
+
+    return json.dumps(ans)

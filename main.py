@@ -1,5 +1,5 @@
 from dbremote import db_session
-from flask import Flask, render_template, redirect
+from flask import Flask
 import os
 import json
 import api
@@ -23,9 +23,9 @@ def not_found_error():
 
 def main():
     db_session.global_init("db/data.sqlite")
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 80))
     app.register_blueprint(api.blueprint)
-    app.run(port=port, host='127.0.0.1', debug=True)
+    app.run(port=port, host='0.0.0.0', debug=False)
     return 0
 
 
