@@ -1,0 +1,7 @@
+pipreqs --force C:\YandexBackend\
+docker build -t yandexbackend:v0.4 YandexBackend/
+docker save yandexbackend:v0.4 -o C:\dockerimage\image.tar
+scp -i C:\YandexBackend\key.txt C:\dockerimage\image.tar ubuntu@10.20.1.149:80
+
+sudo docker load < 80
+sudo docker run --publish 80:80 --restart=always yandexbackend:v0.4
