@@ -23,7 +23,7 @@ def add_to_db():
     session = create_session()
 
     content = request.json
-
+    print(content)
     abstract = {'id': '',
                 'parentId': '',
                 'name': '',
@@ -31,7 +31,6 @@ def add_to_db():
                 'updateDate': '',
                 'type': '',
                 'latest': True}
-
 
     updateDate = content['updateDate']
 
@@ -70,11 +69,11 @@ def add_to_db():
         if new_item.parentId != None:
             new_copy = copy(new_item)
             parent = session.query(Category).filter(Category.id == new_copy.parentId).first()
-            while(parent.parentId != None):
+            if (parent != None):
+                while (parent.parentId != None):
+                    parent.date = abstract['updateDate']
+                    parent = session.query(Category).filter(Category.id == parent.parentId).first()
                 parent.date = abstract['updateDate']
-                parent = session.query(Category).filter(Category.id == parent.parentId).first()
-            parent.date = abstract['updateDate']
-
 
         session.add(new_item)
 
@@ -168,7 +167,10 @@ def form_dict(children):
                 abstract['price'] = abstract2['price']
             n += 1
     price = abstract['price']
-    abstract['price'] = (abstract['price'] + 1) // n
+    if n != 0:
+        abstract['price'] = (abstract['price'] + 1) // n
+    else:
+        abstract['price'] = 0
     if abstract['children'] == []:
         abstract['children'] = None
     return abstract, n, price
@@ -204,7 +206,6 @@ def info(id: str):
         return json.loads("{\n  \"code\": 400,\n  \"message\": \"Validation Failed\"\n}"), 400
     element = session.query(Category).filter(Category.id == id, Category.latest == True).first()
     if element == None:
-
         return json.loads("{\n  \"code\": 404,\n  \"message\": \"Item not found\"\n}"), 404
 
     children = get_children(element, session)
