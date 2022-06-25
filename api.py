@@ -213,3 +213,28 @@ def info(id: str):
     ans, num, price = form_dict(children)
 
     return json.dumps(ans)
+def item_to_dict(item):
+    abstract = {'id': item.id, 'parentId': item.parentId, 'name': item.name, 'price': item.price,
+                'date': item.date.strftime("%Y-%m-%dT%H:%M:%S.000Z"), 'type': item.type}
+    return abstract
+
+@blueprint.route("/sales", methods=["GET", "POST"])
+def sales():
+    session = create_session()
+    content = request.args
+    date = content.get('date')
+    if not datetime_valid(date):
+        print("not valid time")
+        return json.loads("{\n  \"code\": 400,\n  \"message\": \"Validation Failed\"\n}"), 400
+    date = datetime.fromisoformat(date.replace("Z", "+00:00"))
+
+    data = session.query(Category).filter(Category.type == "OFFER", Category.date <= date,
+                                          Category.date >= date - timedelta(days=1)).all()
+
+    ans = {'items': []}
+    for item in data:
+        ans['items'].append(item_to_dict(item))
+    if ans['items'] == []:
+        ans['items'] = None
+
+    return json.dumps(ans)
