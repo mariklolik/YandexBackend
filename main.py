@@ -25,7 +25,7 @@ def main():
     db_session.global_init("db/data.sqlite")
     port = int(os.environ.get("PORT", 80))
     app.register_blueprint(api_new.blueprint)
-    app.run(port=port, host='0.0.0.0', debug=True)
+    app.run(port=port, host='0.0.0.0', debug=False)
     return 0
 
 
